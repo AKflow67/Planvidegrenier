@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Plan Vide Grenier — Allées Jean Jaurès</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #263238;
+            color: #212121;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* === HEADER === */
+        header {
+            background: linear-gradient(135deg, #1565c0, #1976d2);
+            color: white;
+            padding: 0.5rem 1rem;
+            text-align: center;
+            z-index: 50;
+            flex-shrink: 0;
+        }
+        header h1 { font-size: 1.1rem; margin-bottom: 0.1rem; }
+        header p { font-size: 0.75rem; opacity: 0.9; }
+        #stats {
+            display: flex; justify-content: center; gap: 0.8rem;
+            margin-top: 0.3rem; font-size: 0.75rem; flex-wrap: wrap;
+        }
+        .stat {
+            background: rgba(255,255,255,0.2);
+            padding: 0.15rem 0.5rem;
+            border-radius: 10px;
+        }
+
+        /* === TOOLBAR === */
+        .toolbar {
+            display: flex; gap: 0.4rem; padding: 0.4rem 0.8rem;
+            background: #37474f; border-bottom: 1px solid #455a64;
+            flex-wrap: wrap; align-items: center; flex-shrink: 0;
+        }
+        .toolbar input[type="text"] {
+            flex: 1; min-width: 120px; padding: 0.3rem 0.6rem;
+            border: 1px solid #546e7a; border-radius: 6px;
+            font-size: 0.8rem; background: #455a64; color: white;
+        }
+        .toolbar input::placeholder { color: #90a4ae; }
+        .toolbar button {
+            padding: 0.3rem 0.7rem; border: none; border-radius: 6px;
+            font-size: 0.75rem; font-weight: 600; cursor: pointer;
+            background: #546e7a; color: white;
+        }
+        .toolbar button:hover { background: #607d8b; }
+
+        /* === PLAN CONTAINER === */
+        #plan-container {
+            flex: 1;
+            background: #eceff1;
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+        }
+        #plan-container.dragging { cursor: grabbing; }
+        #plan-svg { width: 100%; height: 100%; display: block; }
+        #plan-svg rect[data-empl] { transition: opacity 0.15s; }
+        #plan-svg rect[data-empl]:hover { opacity: 0.7; stroke-width: 0.3 !important; }
+
+        /* === ZOOM CONTROLS === */
+        .zoom-controls {
+            position: absolute; bottom: 1rem; right: 1rem;
+            display: flex; flex-direction: column; gap: 0.3rem;
+            z-index: 20;
+        }
+        .zoom-controls button {
+            width: 38px; height: 38px; border: none; border-radius: 8px;
+            background: rgba(255,255,255,0.92); color: #333;
+            font-size: 1.3rem; font-weight: bold; cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .zoom-controls button:hover { background: white; }
+        .zoom-controls .btn-text {
+            font-size: 0.6rem; width: auto; padding: 0 10px;
+        }
+
+        /* === NAV TABS === */
+        .nav-tabs {
+            position: absolute; top: 0.5rem; left: 50%;
+            transform: translateX(-50%);
+            display: flex; gap: 0.3rem; z-index: 20;
+        }
+        .nav-tabs button {
+            padding: 0.3rem 0.7rem; border: none; border-radius: 6px;
+            font-size: 0.7rem; font-weight: 600; cursor: pointer;
+            background: rgba(255,255,255,0.88); color: #333;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+        }
+        .nav-tabs button:hover { background: white; }
+
+        /* === LEGEND === */
+        .legend-bar {
+            position: absolute; bottom: 0.8rem; left: 1rem;
+            display: flex; gap: 0.7rem; z-index: 20;
+            background: rgba(255,255,255,0.92);
+            padding: 0.35rem 0.7rem; border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+            font-size: 0.65rem;
+            transition: bottom 0.3s ease;
+        }
+        .legend-bar.pushed-up { bottom: 4.5rem; }
+        .legend-bar .li { display: flex; align-items: center; gap: 0.3rem; }
+        .legend-bar .sw { width: 14px; height: 14px; border-radius: 3px; }
+
+        /* === SELECTION BAR === */
+        #selection-bar {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: linear-gradient(135deg, #1565c0, #0d47a1);
+            color: white;
+            padding: 0.7rem 1.2rem;
+            display: none; align-items: center; justify-content: space-between;
+            z-index: 30;
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.3);
+            animation: slideUpBar 0.25s ease-out;
+        }
+        #selection-bar.active { display: flex; }
+        @keyframes slideUpBar {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        #selection-bar .sel-info {
+            font-size: 0.95rem; font-weight: 600;
+        }
+        #selection-bar .sel-info small {
+            font-weight: 400; opacity: 0.8; font-size: 0.8rem;
+        }
+        #selection-bar .sel-actions { display: flex; gap: 0.5rem; }
+        #selection-bar .sel-actions button {
+            padding: 0.5rem 1.2rem; border: none; border-radius: 8px;
+            font-size: 0.85rem; font-weight: 700; cursor: pointer;
+        }
+        .btn-sel-cancel { background: rgba(255,255,255,0.2); color: white; }
+        .btn-sel-cancel:hover { background: rgba(255,255,255,0.3); }
+        .btn-sel-reserve { background: #ffb300; color: #333; }
+        .btn-sel-reserve:hover { background: #ffc107; }
+
+        /* === CONFIRM OVERLAY (mini) === */
+        .confirm-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5); z-index: 250;
+            justify-content: center; align-items: center; padding: 1rem;
+        }
+        .confirm-overlay.active { display: flex; }
+        .confirm-box {
+            background: white; border-radius: 14px; padding: 1.5rem 2rem;
+            text-align: center; max-width: 380px; width: 100%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideUp 0.2s ease-out;
+        }
+        .confirm-box h3 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #1565c0; }
+        .confirm-box p { font-size: 0.95rem; color: #555; margin-bottom: 1.2rem; }
+        .confirm-box .confirm-nums {
+            font-size: 0.75rem; color: #888; margin-bottom: 1rem;
+            max-height: 60px; overflow: auto;
+        }
+        .confirm-box .confirm-actions { display: flex; gap: 0.5rem; justify-content: center; }
+        .confirm-box .confirm-actions button {
+            padding: 0.6rem 1.5rem; border: none; border-radius: 8px;
+            font-size: 0.9rem; font-weight: 600; cursor: pointer;
+        }
+
+        /* === HOVER INFO === */
+        #hover-info {
+            position: absolute; top: 0.5rem; right: 1rem;
+            background: rgba(0,0,0,0.75); color: white;
+            padding: 0.4rem 0.8rem; border-radius: 8px;
+            font-size: 0.75rem; z-index: 20;
+            pointer-events: none;
+            opacity: 0; transition: opacity 0.2s;
+        }
+        #hover-info.visible { opacity: 1; }
+
+        /* === MODAL === */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5); z-index: 200;
+            justify-content: center; align-items: center; padding: 1rem;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: white; border-radius: 12px; padding: 1.5rem;
+            max-width: 400px; width: 100%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+            animation: slideUp 0.2s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .modal-box h2 { font-size: 1.1rem; margin-bottom: 0.15rem; }
+        .modal-box .modal-subtitle { color: #757575; font-size: 0.85rem; margin-bottom: 1rem; }
+        .modal-box .form-group { margin-bottom: 0.75rem; }
+        .modal-box label {
+            display: block; font-size: 0.8rem; font-weight: 600;
+            margin-bottom: 0.2rem; color: #424242;
+        }
+        .modal-box input[type="text"],
+        .modal-box input[type="tel"],
+        .modal-box input[type="email"] {
+            width: 100%; padding: 0.6rem 0.8rem;
+            border: 2px solid #e0e0e0; border-radius: 8px;
+            font-size: 0.95rem; outline: none; transition: border-color 0.2s;
+        }
+        .modal-box input:focus { border-color: #1565c0; }
+        .modal-actions {
+            display: flex; gap: 0.5rem; margin-top: 1rem;
+            justify-content: flex-end; flex-wrap: wrap;
+        }
+        .modal-actions button {
+            padding: 0.5rem 1rem; border-radius: 8px;
+            font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none;
+        }
+        .btn-modal-cancel { background: #eee; color: #424242; }
+        .btn-modal-save { background: #1565c0; color: white; }
+        .btn-modal-save:hover { background: #0d47a1; }
+        .btn-modal-clear { background: #ffebee; color: #c62828; }
+        .btn-modal-clear:hover { background: #ffcdd2; }
+
+        /* === TOAST === */
+        .toast {
+            position: fixed; bottom: 1.5rem; left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #1565c0; color: white;
+            padding: 0.6rem 1.5rem; border-radius: 10px;
+            font-size: 0.85rem; font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease; z-index: 300;
+        }
+        .toast.visible { transform: translateX(-50%) translateY(0); }
+
+        /* === PRINT LIST === */
+        #print-list-overlay {
+            display: none; position: fixed; inset: 0;
+            background: white; z-index: 500; overflow: auto; padding: 2rem;
+        }
+        #print-list-overlay.active { display: block; }
+        #print-list-overlay h1 { font-size: 1.3rem; margin-bottom: 0.2rem; }
+        #print-list-overlay .subtitle { color: #757575; margin-bottom: 1rem; }
+        #print-list-overlay table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        #print-list-overlay th {
+            background: #f5f5f5; text-align: left; padding: 0.4rem 0.6rem;
+            border-bottom: 2px solid #ccc; font-size: 0.75rem; text-transform: uppercase;
+        }
+        #print-list-overlay td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #eee; }
+        #print-list-overlay tr:nth-child(even) { background: #fafafa; }
+        .print-list-actions { margin-bottom: 1rem; display: flex; gap: 0.5rem; }
+        .print-list-actions button {
+            padding: 0.5rem 1rem; border-radius: 6px; border: none;
+            font-weight: 600; cursor: pointer;
+        }
+
+        @media print {
+            header, .toolbar, .zoom-controls, .nav-tabs, .legend-bar,
+            #hover-info, .modal-overlay, .toast { display: none !important; }
+            #plan-container { display: none !important; }
+            #print-list-overlay .print-list-actions { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Vide Grenier du 1er Mai</h1>
+    <p>Allées Jean Jaurès — Bagnères-de-Bigorre</p>
+    <div id="stats"></div>
+</header>
+
+<div class="toolbar">
+    <input type="text" id="search" placeholder="Rechercher un nom ou n°..." oninput="handleSearch()">
+    <button onclick="exportCSV()">CSV</button>
+    <button onclick="showPrintList()">Liste</button>
+</div>
+
+<div id="plan-container">
+    <div class="nav-tabs">
+        <button onclick="zoomToAll()">Vue complète</button>
+        <button onclick="zoomToZone(0, 115)">Zone 1</button>
+        <button onclick="zoomToZone(108, 130)">Restauration</button>
+        <button onclick="zoomToZone(125, 320)">Zone 2</button>
+    </div>
+
+    <div id="hover-info"></div>
+
+    <div class="zoom-controls">
+        <button onclick="zoomIn()" title="Zoom +">+</button>
+        <button onclick="zoomOut()" title="Zoom −">−</button>
+        <button class="btn-text" onclick="zoomToAll()" title="Voir tout">Tout</button>
+    </div>
+
+    <div class="legend-bar" id="legend-bar">
+        <div class="li"><div class="sw" style="background:#a5d6a7;border:1px solid #66bb6a"></div>Libre</div>
+        <div class="li"><div class="sw" style="background:#1565c0"></div>Occupé</div>
+        <div class="li"><div class="sw" style="background:#ff6f00"></div>Sélectionné</div>
+        <div class="li"><div class="sw" style="background:#ff8f00"></div>Restauration</div>
+        <div class="li"><div class="sw" style="background:#fdd835"></div>Passage</div>
+    </div>
+
+    <div id="selection-bar">
+        <div class="sel-info">
+            <span id="sel-count">0</span> emplacement(s) sélectionné(s)
+            <br><small id="sel-nums"></small>
+        </div>
+        <div class="sel-actions">
+            <button class="btn-sel-cancel" onclick="clearSelection()">Annuler</button>
+            <button class="btn-sel-reserve" onclick="confirmReservation()">Réserver</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm reservation overlay -->
+<div class="confirm-overlay" id="confirm-overlay">
+    <div class="confirm-box">
+        <h3 id="confirm-title">Réservation groupée</h3>
+        <p id="confirm-text"></p>
+        <div class="confirm-nums" id="confirm-nums"></div>
+        <div class="confirm-actions">
+            <button style="background:#eee;color:#424242" onclick="cancelConfirm()">Annuler</button>
+            <button style="background:#1565c0;color:white" onclick="proceedToForm()">Oui, réserver</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal">
+    <div class="modal-box">
+        <h2 id="modal-title">Emplacement</h2>
+        <p class="modal-subtitle" id="modal-subtitle"></p>
+        <div id="modal-fields"></div>
+        <div class="modal-actions" id="modal-actions"></div>
+    </div>
+</div>
+
+<!-- Print list -->
+<div id="print-list-overlay">
+    <div class="print-list-actions">
+        <button style="background:#1565c0;color:white" onclick="window.print()">Imprimer</button>
+        <button style="background:#eee;color:#333" onclick="closePrintList()">Fermer</button>
+    </div>
+    <h1>Liste des emplacements — Vide Grenier 1er Mai</h1>
+    <p class="subtitle">Allées Jean Jaurès, Bagnères-de-Bigorre</p>
+    <div id="print-list-content"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+
+<script>
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  CONFIGURATION                                               ║
+// ╚══════════════════════════════════════════════════════════════╝
+const firebaseConfig = {
+    apiKey: "AIzaSyAlgcqKVKCAToeY5mgkO9lBRuEJqn2RDrI",
+    authDomain: "vide-grenier-mai.firebaseapp.com",
+    databaseURL: "https://vide-grenier-mai-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "vide-grenier-mai",
+    storageBucket: "vide-grenier-mai.firebasestorage.app",
+    messagingSenderId: "315112006161",
+    appId: "1:315112006161:web:53dd2e0543fe46873a87b0"
+};
+
+const FORM_FIELDS = [
+    { id: 'nom',    label: 'Nom',    type: 'text', required: true },
+    { id: 'prenom', label: 'Prénom', type: 'text', required: true },
+    // { id: 'tel',    label: 'Téléphone', type: 'tel',  required: false },
+    // { id: 'metres', label: 'Mètres',    type: 'text', required: false },
+];
+
+const CONFIG = {
+    totalLength: 315,
+    zone1End: 110,       // stands s'arrêtent à 110 (ouverture devant buvette)
+    zone2Start: 127,
+    bridgeCrossing: 4,
+    intermediateCrossing: 0,
+    gapEvery: 10,
+    // Restauration layout
+    gaufresStart: 104,   // 6m stand gaufres école, côté eau, à GAUCHE de la buvette
+    gaufresLen: 6,
+    buvetteStart: 110,   // 5m buvette octogone, côté eau, en face de l'ouverture
+    buvetteDiam: 5,
+    sandwichStart: 115,  // 5m sandwichs, côté route, à droite de l'ouverture
+    sandwichLen: 5,
+    // Passage piéton zone 2
+    zone2Crossing: 150,
+    zone2CrossingWidth: 4,
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  SVG LAYOUT — Proportions vue de dessus (unités = mètres)   ║
+// ╚══════════════════════════════════════════════════════════════╝
+const SL = {
+    padL: 16, padR: 8, padT: 5, padB: 4,
+    riverH: 9,
+    quayH: 0.6,
+    emplH: 3,
+    margin: 0.3,
+    alleeH: 4,       // allée étroite — stands face à face
+    treesH: 4,       // rangée d'arbres entre emplacements route et la route
+    curbH: 0.5,
+    roadH: 6,
+};
+
+// Y positions (top → bottom: rivière → quai → empl eau → allée → empl route → arbres → route)
+const Y = {};
+Y.river = 0;
+Y.quay = SL.riverH;
+Y.emplEau = Y.quay + SL.quayH;
+Y.allee = Y.emplEau + SL.emplH + SL.margin;
+Y.emplRoute = Y.allee + SL.alleeH + SL.margin;
+Y.trees = Y.emplRoute + SL.emplH;
+Y.curb = Y.trees + SL.treesH;
+Y.road = Y.curb + SL.curbH;
+const SVG_H = Y.road + SL.roadH;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  GÉNÉRATION DES EMPLACEMENTS                                 ║
+// ╚══════════════════════════════════════════════════════════════╝
+const ALL_EMPLACEMENTS = {};
+let nextOdd = 1;
+let nextEven = 2;
+
+function buildPlan() {
+    // Zone 1 : Double rangée (0 → 110m)
+    for (let m = 0; m < CONFIG.zone1End; m++) {
+        if (m > 0 && m % CONFIG.gapEvery === 0) continue;
+
+        // Côté Eau (impairs) — s'arrête avant les gaufres (104m)
+        if (m < CONFIG.gaufresStart) {
+            ALL_EMPLACEMENTS[nextOdd] = { side: 'eau', meter: m };
+            nextOdd += 2;
+        }
+
+        // Côté Route (pairs) — après le pont, jusqu'à 110m
+        if (m >= CONFIG.bridgeCrossing) {
+            ALL_EMPLACEMENTS[nextEven] = { side: 'route', meter: m };
+            nextEven += 2;
+        }
+    }
+
+    // Zone 2 : Simple rangée côté route (127 → 315m)
+    let z2count = 0;
+    const crossStart = CONFIG.zone2Crossing;
+    const crossEnd = CONFIG.zone2Crossing + CONFIG.zone2CrossingWidth;
+    for (let m = CONFIG.zone2Start; m < CONFIG.totalLength; m++) {
+        // Skip passage piéton zone 2
+        if (m >= crossStart && m < crossEnd) continue;
+
+        z2count++;
+        if (z2count > 1 && (z2count - 1) % CONFIG.gapEvery === 0) continue;
+
+        ALL_EMPLACEMENTS[nextEven] = { side: 'route', meter: m };
+        nextEven += 2;
+    }
+}
+buildPlan();
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  VIEW STATE (zoom & pan)                                     ║
+// ╚══════════════════════════════════════════════════════════════╝
+const FULL_VB = {
+    x: -SL.padL, y: -SL.padT,
+    w: CONFIG.totalLength + SL.padL + SL.padR,
+    h: SVG_H + SL.padT + SL.padB
+};
+let viewBox = { ...FULL_VB };
+
+function applyViewBox() {
+    const svg = document.getElementById('plan-svg');
+    if (svg) svg.setAttribute('viewBox',
+        `${viewBox.x.toFixed(2)} ${viewBox.y.toFixed(2)} ${viewBox.w.toFixed(2)} ${viewBox.h.toFixed(2)}`);
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  FIREBASE                                                    ║
+// ╚══════════════════════════════════════════════════════════════╝
+let db = null;
+let data = {};
+let firebaseReady = false;
+
+function initFirebase() {
+    if (typeof firebase === 'undefined') {
+        showOfflineBanner();
+        return;
+    }
+    try {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+        firebaseReady = true;
+        hideOfflineBanner();
+        db.ref('emplacements').on('value', snap => {
+            data = snap.val() || {};
+            render();
+        });
+    } catch (e) {
+        console.error('Erreur Firebase:', e);
+        showOfflineBanner();
+    }
+}
+
+function showOfflineBanner() {
+    if (document.getElementById('offline-banner')) return;
+    const b = document.createElement('div');
+    b.id = 'offline-banner';
+    b.style.cssText = 'background:#fff3e0;color:#e65100;text-align:center;padding:0.35rem;font-size:0.75rem;font-weight:600;border-bottom:2px solid #ffb74d;flex-shrink:0;';
+    b.textContent = 'Mode hors-ligne — données non synchronisées';
+    document.body.insertBefore(b, document.body.firstChild);
+}
+function hideOfflineBanner() {
+    const b = document.getElementById('offline-banner');
+    if (b) b.remove();
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  RENDU SVG — VUE DE DESSUS                                  ║
+// ╚══════════════════════════════════════════════════════════════╝
+function render() {
+    const container = document.getElementById('plan-container');
+    if (!container) return;
+
+    const searchTerm = (document.getElementById('search')?.value || '').toLowerCase();
+    const L = CONFIG.totalLength;
+    const restoX = CONFIG.zone1End + CONFIG.intermediateCrossing;
+    const restoW = CONFIG.zone2Start - restoX;
+
+    let s = '';
+
+    // === DEFS ===
+    s += `<defs>
+        <linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#4fc3f7"/>
+            <stop offset="100%" stop-color="#039be5"/>
+        </linearGradient>
+        <pattern id="wp" width="6" height="3" patternUnits="userSpaceOnUse">
+            <path d="M0 1.5Q1.5 0 3 1.5Q4.5 3 6 1.5" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="0.4"/>
+        </pattern>
+    </defs>`;
+
+    // === FOND : RIVIÈRE ===
+    s += `<rect x="${-SL.padL}" y="${Y.river}" width="${L+SL.padL+SL.padR}" height="${SL.riverH}" fill="url(#rg)"/>`;
+    s += `<rect x="${-SL.padL}" y="${Y.river}" width="${L+SL.padL+SL.padR}" height="${SL.riverH}" fill="url(#wp)"/>`;
+    s += `<text x="${L/2}" y="${Y.river + SL.riverH*0.55}" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.35)" font-size="4" font-weight="bold" letter-spacing="10">L'ADOUR</text>`;
+
+    // === MURET DU QUAI ===
+    s += `<rect x="0" y="${Y.quay}" width="${L}" height="${SL.quayH}" fill="#5d4037"/>`;
+
+    // === FOND EMPLACEMENTS EAU (zone 1 : 0→104m, avant gaufres) ===
+    s += `<rect x="0" y="${Y.emplEau}" width="${CONFIG.gaufresStart}" height="${SL.emplH}" fill="#e8f5e9" rx="0.3"/>`;
+
+    // === ALLÉE CENTRALE (étroite — stands face à face) ===
+    s += `<rect x="0" y="${Y.allee}" width="${L}" height="${SL.alleeH}" fill="#d7ccc8"/>`;
+
+    // === FOND EMPLACEMENTS ROUTE ===
+    // Zone 1 (4→110m)
+    s += `<rect x="${CONFIG.bridgeCrossing}" y="${Y.emplRoute}" width="${CONFIG.zone1End - CONFIG.bridgeCrossing}" height="${SL.emplH}" fill="#e8f5e9" rx="0.3"/>`;
+    // Zone 2 avant passage (127→150m)
+    s += `<rect x="${CONFIG.zone2Start}" y="${Y.emplRoute}" width="${CONFIG.zone2Crossing - CONFIG.zone2Start}" height="${SL.emplH}" fill="#e8f5e9" rx="0.3"/>`;
+    // Zone 2 après passage (154→315m)
+    s += `<rect x="${CONFIG.zone2Crossing + CONFIG.zone2CrossingWidth}" y="${Y.emplRoute}" width="${L - CONFIG.zone2Crossing - CONFIG.zone2CrossingWidth}" height="${SL.emplH}" fill="#e8f5e9" rx="0.3"/>`;
+
+    // === RANGÉE D'ARBRES (entre emplacements route et la route) ===
+    s += `<rect x="${-SL.padL}" y="${Y.trees}" width="${L+SL.padL+SL.padR}" height="${SL.treesH}" fill="#e8f0e0"/>`;
+    for (let m = 3; m < L; m += 5) {
+        if (m > CONFIG.zone1End - 2 && m < CONFIG.zone2Start + 2) continue;
+        s += `<circle cx="${m}" cy="${Y.trees + SL.treesH/2}" r="1.6" fill="#81c784" opacity="0.55"/>`;
+        s += `<circle cx="${m}" cy="${Y.trees + SL.treesH/2}" r="0.5" fill="#5d4037" opacity="0.35"/>`;
+    }
+
+    // === BORDURE + ROUTE ===
+    s += `<rect x="0" y="${Y.curb}" width="${L}" height="${SL.curbH}" fill="#9e9e9e"/>`;
+    s += `<rect x="${-SL.padL}" y="${Y.road}" width="${L+SL.padL+SL.padR}" height="${SL.roadH}" fill="#616161"/>`;
+    s += `<line x1="${-SL.padL}" y1="${Y.road+SL.roadH/2}" x2="${L+SL.padR}" y2="${Y.road+SL.roadH/2}" stroke="white" stroke-width="0.25" stroke-dasharray="3,2.5" opacity="0.5"/>`;
+    s += `<text x="${L/2}" y="${Y.road + SL.roadH*0.55}" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.2)" font-size="3" font-weight="bold" letter-spacing="6">ROUTE</text>`;
+
+    // === Fonction passage piéton sur la route (bandes horizontales) ===
+    function drawRoadCrossing(xStart, width) {
+        const stripeH = 0.5;
+        const gap = 0.5;
+        const roadTop = Y.road + 0.6;
+        const roadBot = Y.road + SL.roadH - 0.6;
+        for (let yy = roadTop; yy + stripeH <= roadBot; yy += stripeH + gap) {
+            s += `<rect x="${xStart}" y="${yy}" width="${width}" height="${stripeH}" fill="white" opacity="0.8" rx="0.08"/>`;
+        }
+    }
+
+    // === PASSAGE PIÉTON #1 — début zone 1 (0→4m) ===
+    drawRoadCrossing(0, CONFIG.bridgeCrossing);
+
+    // === PASSAGE PIÉTON #2 — entre zones (~110m, sur la route uniquement) ===
+    drawRoadCrossing(110, 5);
+
+    // === PASSAGE PIÉTON #3 — zone 2 (~150m) ===
+    const z2cx = CONFIG.zone2Crossing;
+    const z2cw = CONFIG.zone2CrossingWidth;
+    drawRoadCrossing(z2cx, z2cw);
+
+    // === ZONE RESTAURATION (fond léger couvrant gaufres+buvette+sandwichs) ===
+    s += `<rect x="${CONFIG.gaufresStart}" y="${Y.emplEau}" width="${CONFIG.zone2Start - CONFIG.gaufresStart}" height="${Y.curb - Y.emplEau}" fill="#ff8f00" opacity="0.06" rx="1"/>`;
+
+    // === STAND GAUFRES (école) — 6m côté eau, à GAUCHE de la buvette ===
+    const gX = CONFIG.gaufresStart;
+    const gW = CONFIG.gaufresLen;
+    s += `<rect x="${gX}" y="${Y.emplEau}" width="${gW}" height="${SL.emplH}" fill="#ff8f00" opacity="0.7" rx="0.3" stroke="#e65100" stroke-width="0.15"/>`;
+    s += `<text x="${gX + gW/2}" y="${Y.emplEau + SL.emplH/2 - 0.5}" text-anchor="middle" dominant-baseline="middle" fill="#4e342e" font-size="1.1" font-weight="bold">GAUFRES</text>`;
+    s += `<text x="${gX + gW/2}" y="${Y.emplEau + SL.emplH/2 + 0.7}" text-anchor="middle" dominant-baseline="middle" fill="#5d4037" font-size="0.8">(école)</text>`;
+
+    // === BUVETTE — octogone 5m, côté eau, plus profonde ===
+    const bX = CONFIG.buvetteStart;
+    const bD = CONFIG.buvetteDiam;
+    const bCx = bX + bD / 2;
+    const buvetteDepth = bD;
+    const bCy = Y.emplEau + buvetteDepth / 2;
+    const bR = bD / 2;
+    let octPoints = '';
+    for (let i = 0; i < 8; i++) {
+        const angle = -Math.PI/2 + Math.PI/8 + i * Math.PI/4;
+        const px = bCx + bR * Math.cos(angle);
+        const py = bCy + bR * Math.sin(angle);
+        octPoints += `${px.toFixed(2)},${py.toFixed(2)} `;
+    }
+    s += `<polygon points="${octPoints.trim()}" fill="#d84315" opacity="0.85" stroke="#bf360c" stroke-width="0.2"/>`;
+    s += `<text x="${bCx}" y="${bCy - 0.3}" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="1.3" font-weight="bold">BUVETTE</text>`;
+    s += `<text x="${bCx}" y="${bCy + 0.9}" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.8)" font-size="0.8">5m</text>`;
+
+    // === SANDWICHS — 5m côté route, juste à droite de l'ouverture ===
+    const sX = CONFIG.sandwichStart;
+    const sW = CONFIG.sandwichLen;
+    const skew = 0.6;
+    const sy1 = Y.emplRoute;
+    const sy2 = Y.emplRoute + SL.emplH;
+    s += `<polygon points="${sX+skew},${sy1} ${sX+sW+skew},${sy1} ${sX+sW},${sy2} ${sX},${sy2}"
+        fill="#ff8f00" opacity="0.7" stroke="#e65100" stroke-width="0.15"/>`;
+    s += `<text x="${sX + sW/2 + skew/2}" y="${Y.emplRoute + SL.emplH/2}" text-anchor="middle" dominant-baseline="middle"
+        fill="#4e342e" font-size="1.1" font-weight="bold">SANDWICHS</text>`;
+
+    // === MARQUEURS GAPS (lignes blanches) ===
+    for (let m = CONFIG.gapEvery; m < CONFIG.zone1End; m += CONFIG.gapEvery) {
+        if (m < CONFIG.gaufresStart) {
+            s += `<line x1="${m}" y1="${Y.emplEau}" x2="${m}" y2="${Y.emplEau + SL.emplH}" stroke="white" stroke-width="0.4"/>`;
+        }
+        if (m >= CONFIG.bridgeCrossing) {
+            s += `<line x1="${m}" y1="${Y.emplRoute}" x2="${m}" y2="${Y.emplRoute + SL.emplH}" stroke="white" stroke-width="0.4"/>`;
+        }
+    }
+    // Zone 2 gaps
+    let z2c = 0;
+    for (let m = CONFIG.zone2Start; m < CONFIG.totalLength; m++) {
+        if (m >= CONFIG.zone2Crossing && m < CONFIG.zone2Crossing + CONFIG.zone2CrossingWidth) continue;
+        z2c++;
+        if (z2c > 1 && (z2c - 1) % CONFIG.gapEvery === 0) {
+            s += `<line x1="${m}" y1="${Y.emplRoute}" x2="${m}" y2="${Y.emplRoute + SL.emplH}" stroke="white" stroke-width="0.4"/>`;
+        }
+    }
+
+    // === MARQUEURS MÉTRIQUES ===
+    for (let m = 0; m <= L; m += 25) {
+        s += `<line x1="${m}" y1="${-SL.padT+1.5}" x2="${m}" y2="${SVG_H+1}" stroke="#90a4ae" stroke-width="0.15" stroke-dasharray="1,1.5" opacity="0.5"/>`;
+        s += `<text x="${m}" y="${-SL.padT+3.5}" text-anchor="middle" fill="#607d8b" font-size="2">${m}m</text>`;
+    }
+
+    // === LABELS DE ZONES (transparents, dans la zone arbres où il y a de la place) ===
+    s += `<text x="${CONFIG.zone1End/2}" y="${Y.trees + SL.treesH/2}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.06)" font-size="3" font-weight="bold">ZONE 1 — DOUBLE RANGÉE</text>`;
+    s += `<text x="${(CONFIG.zone2Start + CONFIG.zone2Crossing)/2}" y="${Y.trees + SL.treesH/2}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.06)" font-size="3" font-weight="bold">ZONE 2a</text>`;
+    s += `<text x="${(CONFIG.zone2Crossing + CONFIG.zone2CrossingWidth + L)/2}" y="${Y.trees + SL.treesH/2}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.06)" font-size="3" font-weight="bold">ZONE 2b</text>`;
+
+    // === LABELS DE CÔTÉS ===
+    s += `<text x="-2" y="${Y.emplEau + SL.emplH/2 - 0.8}" text-anchor="end" dominant-baseline="middle" fill="#2e7d32" font-size="1.8" font-weight="bold">IMPAIRS</text>`;
+    s += `<text x="-2" y="${Y.emplEau + SL.emplH/2 + 1}" text-anchor="end" dominant-baseline="middle" fill="#558b2f" font-size="1.2">Côté Eau</text>`;
+
+    // Ouverture 110→115 côté route (espace vide devant la buvette)
+    s += `<rect x="${CONFIG.buvetteStart}" y="${Y.emplRoute + 0.2}" width="${CONFIG.buvetteDiam}" height="${SL.emplH - 0.4}" fill="#d7ccc8" opacity="0.3" rx="0.3" stroke="#bcaaa4" stroke-width="0.1" stroke-dasharray="0.5,0.5"/>`;
+    s += `<text x="-2" y="${Y.emplRoute + SL.emplH/2 - 0.8}" text-anchor="end" dominant-baseline="middle" fill="#424242" font-size="1.8" font-weight="bold">PAIRS</text>`;
+    s += `<text x="-2" y="${Y.emplRoute + SL.emplH/2 + 1}" text-anchor="end" dominant-baseline="middle" fill="#757575" font-size="1.2">Côté Route</text>`;
+
+    // === EMPLACEMENTS ===
+    // Identifier les groupes pour la coloration
+    const groupColors = {};
+    const groupPalette = ['#1565c0','#2e7d32','#6a1b9a','#c62828','#00838f','#4527a0','#ad1457','#1b5e20','#bf360c','#283593'];
+    let gIdx = 0;
+    for (const numStr of Object.keys(data)) {
+        const info = data[numStr];
+        if (info?.groupId && !groupColors[info.groupId]) {
+            groupColors[info.groupId] = groupPalette[gIdx % groupPalette.length];
+            gIdx++;
+        }
+    }
+
+    for (const numStr of Object.keys(ALL_EMPLACEMENTS)) {
+        const num = parseInt(numStr);
+        const empl = ALL_EMPLACEMENTS[num];
+        const x = empl.meter;
+        const yPos = empl.side === 'eau' ? Y.emplEau : Y.emplRoute;
+        const info = data[num];
+        const occupied = info && info.nom;
+        const isSelected = selectedEmpls.has(num);
+
+        const isMatch = searchTerm.length >= 2 && occupied &&
+            (info.nom.toLowerCase().includes(searchTerm) || info.prenom.toLowerCase().includes(searchTerm));
+        const isNumMatch = searchTerm.length >= 1 && String(num) === searchTerm;
+
+        let fill, stroke, sw;
+        if (isMatch || isNumMatch) { fill = '#ff5722'; stroke = '#bf360c'; sw = 0.15; }
+        else if (isSelected) { fill = '#ff6f00'; stroke = '#e65100'; sw = 0.25; }
+        else if (occupied && info.groupId) { fill = groupColors[info.groupId] || '#1565c0'; stroke = '#fff'; sw = 0.12; }
+        else if (occupied) { fill = '#1565c0'; stroke = '#0d47a1'; sw = 0.12; }
+        else { fill = '#a5d6a7'; stroke = '#66bb6a'; sw = 0.12; }
+
+        s += `<rect x="${x+0.05}" y="${yPos+0.1}" width="0.9" height="${SL.emplH-0.2}"
+            fill="${fill}" stroke="${stroke}" stroke-width="${sw}" rx="0.15"
+            data-empl="${num}" onclick="handleEmplClick(${num})"
+            onmouseenter="showHover(${num})" onmouseleave="hideHover()"
+            style="cursor:pointer"/>`;
+
+        // Numéro (tourné 90°, lisible au zoom)
+        const tc = (occupied || isSelected) ? 'rgba(255,255,255,0.85)' : 'rgba(27,94,32,0.6)';
+        s += `<text x="${x+0.45}" y="${yPos + SL.emplH/2}"
+            text-anchor="middle" dominant-baseline="middle"
+            transform="rotate(-90,${x+0.45},${yPos + SL.emplH/2})"
+            fill="${tc}" font-size="1.4" pointer-events="none"
+            font-weight="${(occupied || isSelected) ? 'bold' : 'normal'}">${num}</text>`;
+    }
+
+    // Assembler le SVG
+    const svgTag = `<svg id="plan-svg" xmlns="http://www.w3.org/2000/svg"
+        viewBox="${viewBox.x.toFixed(2)} ${viewBox.y.toFixed(2)} ${viewBox.w.toFixed(2)} ${viewBox.h.toFixed(2)}"
+        preserveAspectRatio="xMidYMid meet"
+        style="width:100%;height:100%;display:block;user-select:none;">`;
+
+    const full = svgTag + s + '</svg>';
+
+    // Insérer / remplacer le SVG
+    const existing = container.querySelector('#plan-svg');
+    if (existing) {
+        existing.outerHTML = full;
+    } else {
+        container.insertAdjacentHTML('afterbegin', full);
+    }
+
+    updateStats();
+    setupInteraction();
+}
+
+// === HOVER INFO ===
+function showHover(num) {
+    const empl = ALL_EMPLACEMENTS[num];
+    const info = data[num];
+    const side = empl.side === 'eau' ? 'Côté Eau' : 'Côté Route';
+    const name = (info && info.nom) ? `${info.prenom} ${info.nom}` : 'Libre';
+    const el = document.getElementById('hover-info');
+    let html = `<strong>N°${num}</strong> — ${name}<br>${side} · ${empl.meter}m du pont`;
+    if (info?.groupNums) {
+        const nums = info.groupNums.split(',');
+        html += `<br><em>${nums.length} m réservés</em>`;
+    }
+    if (selectedEmpls.has(num)) {
+        html += `<br><em style="color:#ffb300">Sélectionné</em>`;
+    }
+    el.innerHTML = html;
+    el.classList.add('visible');
+}
+function hideHover() {
+    document.getElementById('hover-info').classList.remove('visible');
+}
+
+function updateStats() {
+    const total = Object.keys(ALL_EMPLACEMENTS).length;
+    const occupied = Object.keys(data).filter(k => data[k]?.nom).length;
+    document.getElementById('stats').innerHTML = `
+        <span class="stat">${total} emplacements</span>
+        <span class="stat">${occupied} occupés</span>
+        <span class="stat">${total - occupied} libres</span>`;
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  ZOOM & PAN                                                  ║
+// ╚══════════════════════════════════════════════════════════════╝
+let isDragging = false;
+let dragStart = {};
+
+function setupInteraction() {
+    const svg = document.getElementById('plan-svg');
+    if (!svg || svg._bound) return;
+    svg._bound = true;
+
+    // Molette → zoom
+    svg.addEventListener('wheel', e => {
+        e.preventDefault();
+        const r = svg.getBoundingClientRect();
+        const fx = (e.clientX - r.left) / r.width;
+        const fy = (e.clientY - r.top) / r.height;
+        doZoom(e.deltaY > 0 ? 1.1 : 1/1.1, fx, fy);
+    }, { passive: false });
+
+    // Souris → pan
+    svg.addEventListener('mousedown', e => {
+        if (e.target.dataset?.empl) return;
+        isDragging = true;
+        container.classList.add('dragging');
+        dragStart = { x: e.clientX, y: e.clientY, vbx: viewBox.x, vby: viewBox.y };
+        e.preventDefault();
+    });
+    const container = document.getElementById('plan-container');
+
+    window.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        const r = svg.getBoundingClientRect();
+        viewBox.x = dragStart.vbx - (e.clientX - dragStart.x) / r.width * viewBox.w;
+        viewBox.y = dragStart.vby - (e.clientY - dragStart.y) / r.height * viewBox.h;
+        applyViewBox();
+    });
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+        container?.classList.remove('dragging');
+    });
+
+    // Touch
+    let lastDist = null;
+    svg.addEventListener('touchstart', e => {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            lastDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY);
+        } else if (e.touches.length === 1 && !e.target.dataset?.empl) {
+            isDragging = true;
+            dragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, vbx: viewBox.x, vby: viewBox.y };
+        }
+    }, { passive: false });
+
+    svg.addEventListener('touchmove', e => {
+        if (e.touches.length === 2 && lastDist) {
+            e.preventDefault();
+            const d = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY);
+            doZoom(lastDist / d, 0.5, 0.5);
+            lastDist = d;
+        } else if (e.touches.length === 1 && isDragging) {
+            e.preventDefault();
+            const r = svg.getBoundingClientRect();
+            viewBox.x = dragStart.vbx - (e.touches[0].clientX - dragStart.x) / r.width * viewBox.w;
+            viewBox.y = dragStart.vby - (e.touches[0].clientY - dragStart.y) / r.height * viewBox.h;
+            applyViewBox();
+        }
+    }, { passive: false });
+
+    svg.addEventListener('touchend', e => {
+        if (e.touches.length < 2) lastDist = null;
+        if (e.touches.length === 0) isDragging = false;
+    });
+}
+
+function doZoom(scale, fx, fy) {
+    const newW = viewBox.w * scale;
+    if (newW < 12 || newW > FULL_VB.w * 1.5) return;
+    const newH = viewBox.h * scale;
+    viewBox.x += (viewBox.w - newW) * fx;
+    viewBox.y += (viewBox.h - newH) * fy;
+    viewBox.w = newW;
+    viewBox.h = newH;
+    applyViewBox();
+}
+
+function zoomIn() { doZoom(0.6, 0.5, 0.5); }
+function zoomOut() { doZoom(1.5, 0.5, 0.5); }
+function zoomToAll() { viewBox = { ...FULL_VB }; applyViewBox(); }
+function zoomToZone(start, end) {
+    const pad = 5;
+    viewBox.x = start - pad;
+    viewBox.w = end - start + pad * 2;
+    viewBox.y = FULL_VB.y;
+    viewBox.h = FULL_VB.h;
+    applyViewBox();
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODAL                                                       ║
+// ╚══════════════════════════════════════════════════════════════╝
+let currentEmpl = null;
+let selectedEmpls = new Set();
+let isGroupMode = false;  // true when modal is for a group reservation
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  SÉLECTION MULTIPLE                                          ║
+// ╚══════════════════════════════════════════════════════════════╝
+function handleEmplClick(num) {
+    const info = data[num];
+    const occupied = info && info.nom;
+
+    // Si l'emplacement est occupé → ouvrir le modal directement (consultation/édition)
+    if (occupied) {
+        openModal(num, false);
+        return;
+    }
+
+    // Sinon → sélection/désélection
+    if (selectedEmpls.has(num)) {
+        selectedEmpls.delete(num);
+    } else {
+        selectedEmpls.add(num);
+    }
+    updateSelectionBar();
+    render();
+}
+
+function updateSelectionBar() {
+    const bar = document.getElementById('selection-bar');
+    const legend = document.getElementById('legend-bar');
+    const count = selectedEmpls.size;
+
+    if (count === 0) {
+        bar.classList.remove('active');
+        legend.classList.remove('pushed-up');
+        return;
+    }
+
+    bar.classList.add('active');
+    legend.classList.add('pushed-up');
+    document.getElementById('sel-count').textContent = count;
+
+    const sorted = [...selectedEmpls].sort((a, b) => a - b);
+    document.getElementById('sel-nums').textContent = 'N° ' + sorted.join(', ');
+}
+
+function clearSelection() {
+    selectedEmpls.clear();
+    updateSelectionBar();
+    render();
+}
+
+function confirmReservation() {
+    const count = selectedEmpls.size;
+    if (count === 0) return;
+
+    const sorted = [...selectedEmpls].sort((a, b) => a - b);
+    document.getElementById('confirm-text').textContent =
+        `Une seule réservation pour ${count} mètre${count > 1 ? 's' : ''} ?`;
+    document.getElementById('confirm-nums').textContent =
+        'Emplacements : ' + sorted.join(', ');
+    document.getElementById('confirm-overlay').classList.add('active');
+}
+
+function cancelConfirm() {
+    document.getElementById('confirm-overlay').classList.remove('active');
+}
+
+function proceedToForm() {
+    document.getElementById('confirm-overlay').classList.remove('active');
+    // Ouvrir le modal en mode groupé
+    openModal([...selectedEmpls].sort((a, b) => a - b)[0], true);
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODAL (simple ou groupé)                                    ║
+// ╚══════════════════════════════════════════════════════════════╝
+function openModal(num, grouped) {
+    currentEmpl = num;
+    isGroupMode = grouped && selectedEmpls.size > 0;
+    const info = data[num] || {};
+    const empl = ALL_EMPLACEMENTS[num];
+    const occupied = info?.nom;
+    const side = empl?.side === 'eau' ? 'Côté Eau (Adour)' : 'Côté Route';
+
+    if (isGroupMode) {
+        const count = selectedEmpls.size;
+        const sorted = [...selectedEmpls].sort((a, b) => a - b);
+        document.getElementById('modal-title').textContent = `Réservation — ${count} mètre${count > 1 ? 's' : ''}`;
+        document.getElementById('modal-subtitle').textContent = 'N° ' + sorted.join(', ');
+    } else {
+        document.getElementById('modal-title').textContent = `Emplacement n°${num}`;
+        document.getElementById('modal-subtitle').textContent = `${side} — ${empl?.meter || 0}m du pont`;
+    }
+
+    let fh = '';
+    for (const f of FORM_FIELDS) {
+        fh += `<div class="form-group">
+            <label for="f-${f.id}">${f.label}${f.required ? ' *' : ''}</label>
+            <input type="${f.type}" id="f-${f.id}" value="${escapeAttr(info[f.id] || '')}" placeholder="${f.label}">
+        </div>`;
+    }
+    document.getElementById('modal-fields').innerHTML = fh;
+
+    let ah = `<button class="btn-modal-cancel" onclick="closeModal()">Annuler</button>`;
+    if (!isGroupMode && occupied) ah += `<button class="btn-modal-clear" onclick="clearEmpl()">Libérer</button>`;
+    ah += `<button class="btn-modal-save" onclick="saveEmpl()">Enregistrer</button>`;
+    document.getElementById('modal-actions').innerHTML = ah;
+
+    document.getElementById('modal').classList.add('active');
+    setTimeout(() => document.getElementById('f-' + FORM_FIELDS[0].id)?.focus(), 100);
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('active');
+    currentEmpl = null;
+    isGroupMode = false;
+}
+
+function saveEmpl() {
+    const values = {};
+    let ok = true;
+    for (const f of FORM_FIELDS) {
+        const el = document.getElementById('f-' + f.id);
+        const val = el.value.trim();
+        if (f.required && !val) { el.style.borderColor = '#c62828'; ok = false; }
+        else { el.style.borderColor = '#e0e0e0'; }
+        values[f.id] = val;
+    }
+    if (!ok) return;
+
+    if (isGroupMode && selectedEmpls.size > 0) {
+        // Enregistrer sur TOUS les emplacements sélectionnés
+        const sorted = [...selectedEmpls].sort((a, b) => a - b);
+        // Ajouter un champ groupId pour les lier visuellement
+        const groupId = 'g_' + sorted[0] + '_' + Date.now();
+        const groupValues = { ...values, groupId: groupId, groupNums: sorted.join(',') };
+
+        if (firebaseReady && db) {
+            const updates = {};
+            for (const n of sorted) {
+                updates['emplacements/' + n] = groupValues;
+            }
+            db.ref().update(updates);
+        } else {
+            for (const n of sorted) {
+                data[n] = { ...groupValues };
+            }
+            render();
+        }
+        closeModal();
+        clearSelection();
+        showToast(`${sorted.length} emplacements réservés pour ${values.prenom} ${values.nom}`);
+    } else if (currentEmpl !== null) {
+        // Sauvegarde simple (un seul emplacement)
+        if (firebaseReady && db) {
+            db.ref('emplacements/' + currentEmpl).set(values);
+            closeModal();
+            showToast(`N°${currentEmpl} enregistré`);
+        } else {
+            data[currentEmpl] = values;
+            closeModal();
+            render();
+            showToast(`N°${currentEmpl} (local)`);
+        }
+    }
+}
+
+function clearEmpl() {
+    if (currentEmpl === null) return;
+    const info = data[currentEmpl];
+    // Si c'est un emplacement groupé, proposer de libérer tout le groupe
+    if (info?.groupNums) {
+        const nums = info.groupNums.split(',').map(Number);
+        if (!confirm(`Libérer les ${nums.length} emplacements du groupe (${nums.join(', ')}) ?`)) return;
+        if (firebaseReady && db) {
+            const updates = {};
+            for (const n of nums) updates['emplacements/' + n] = null;
+            db.ref().update(updates);
+        } else {
+            for (const n of nums) delete data[n];
+            render();
+        }
+        closeModal();
+        showToast(`${nums.length} emplacements libérés`);
+    } else {
+        if (!confirm(`Libérer l'emplacement ${currentEmpl} ?`)) return;
+        if (firebaseReady && db) {
+            db.ref('emplacements/' + currentEmpl).remove();
+        } else {
+            delete data[currentEmpl];
+            render();
+        }
+        closeModal();
+        showToast(`N°${currentEmpl} libéré`);
+    }
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  RECHERCHE                                                   ║
+// ╚══════════════════════════════════════════════════════════════╝
+function handleSearch() {
+    render();
+    const term = document.getElementById('search').value.toLowerCase();
+    if (term.length < 1) return;
+
+    // Recherche par numéro exact
+    const asNum = parseInt(term);
+    if (!isNaN(asNum) && ALL_EMPLACEMENTS[asNum]) {
+        const e = ALL_EMPLACEMENTS[asNum];
+        zoomToZone(e.meter - 15, e.meter + 15);
+        return;
+    }
+
+    // Recherche par nom
+    if (term.length >= 2) {
+        for (const [numStr, empl] of Object.entries(ALL_EMPLACEMENTS)) {
+            const info = data[parseInt(numStr)];
+            if (info?.nom && (info.nom.toLowerCase().includes(term) || info.prenom.toLowerCase().includes(term))) {
+                zoomToZone(empl.meter - 15, empl.meter + 15);
+                return;
+            }
+        }
+    }
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  EXPORT CSV                                                  ║
+// ╚══════════════════════════════════════════════════════════════╝
+function exportCSV() {
+    const headers = ['Emplacement', 'Côté', 'Mètre', ...FORM_FIELDS.map(f => f.label), 'Groupe'];
+    let csv = headers.join(';') + '\n';
+    for (const num of Object.keys(ALL_EMPLACEMENTS).map(Number).sort((a,b) => a-b)) {
+        const info = data[num];
+        if (!info?.nom) continue;
+        const e = ALL_EMPLACEMENTS[num];
+        csv += [num, e.side === 'eau' ? 'Eau' : 'Route', e.meter + 'm',
+            ...FORM_FIELDS.map(f => info[f.id] || ''),
+            info.groupNums || ''].join(';') + '\n';
+    }
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'emplacements-vide-grenier.csv';
+    a.click();
+    showToast('CSV exporté');
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  IMPRESSION LISTE                                            ║
+// ╚══════════════════════════════════════════════════════════════╝
+function showPrintList() {
+    let h = '<table><thead><tr><th>N°</th><th>Côté</th><th>Position</th>';
+    for (const f of FORM_FIELDS) h += `<th>${f.label}</th>`;
+    h += '<th>Mètres réservés</th></tr></thead><tbody>';
+    for (const num of Object.keys(ALL_EMPLACEMENTS).map(Number).sort((a,b) => a-b)) {
+        const info = data[num];
+        if (!info?.nom) continue;
+        const e = ALL_EMPLACEMENTS[num];
+        h += `<tr><td><strong>${num}</strong></td><td>${e.side === 'eau' ? 'Eau' : 'Route'}</td><td>${e.meter}m</td>`;
+        for (const f of FORM_FIELDS) h += `<td>${info[f.id] || ''}</td>`;
+        h += `<td>${info.groupNums || '1'}</td>`;
+        h += '</tr>';
+    }
+    h += '</tbody></table>';
+    document.getElementById('print-list-content').innerHTML = h;
+    document.getElementById('print-list-overlay').classList.add('active');
+}
+function closePrintList() {
+    document.getElementById('print-list-overlay').classList.remove('active');
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  UTILITAIRES                                                 ║
+// ╚══════════════════════════════════════════════════════════════╝
+function escapeAttr(str) { return String(str).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+function escapeHtml(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('visible');
+    setTimeout(() => t.classList.remove('visible'), 2500);
+}
+
+// Fermeture modal + confirm overlay
+document.getElementById('modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('modal')) closeModal();
+});
+document.getElementById('confirm-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('confirm-overlay')) cancelConfirm();
+});
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        if (document.getElementById('confirm-overlay').classList.contains('active')) {
+            cancelConfirm();
+        } else if (document.getElementById('modal').classList.contains('active')) {
+            closeModal();
+        } else if (document.getElementById('print-list-overlay').classList.contains('active')) {
+            closePrintList();
+        } else if (selectedEmpls.size > 0) {
+            clearSelection();
+        }
+    }
+    if (e.key === 'Enter' && document.getElementById('modal').classList.contains('active')) saveEmpl();
+});
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  INIT                                                        ║
+// ╚══════════════════════════════════════════════════════════════╝
+render();
+initFirebase();
+window.addEventListener('load', () => { if (!firebaseReady) initFirebase(); });
+</script>
+
+</body>
+</html>
